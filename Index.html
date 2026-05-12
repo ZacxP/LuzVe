@@ -1,0 +1,271 @@
+```html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LuzVzla Master - Control Inteligente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=JetBrains+Mono:wght@700&display=swap');
+        
+        :root {
+            --bg-black: #050505;
+            --card-gray: #0f0f0f;
+            --accent-blue: #3b82f6;
+            --light-green: #4ade80;
+            --error-red: #f87171;
+        }
+
+        body {
+            background-color: var(--bg-black);
+            color: #ffffff;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .bento-card {
+            background: var(--card-gray);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 24px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .status-glow-green { box-shadow: 0 0 40px -10px rgba(74, 222, 128, 0.2); }
+        .status-glow-red { box-shadow: 0 0 40px -10px rgba(248, 113, 113, 0.2); }
+
+        .hour-item {
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        .hour-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            width: 2px;
+            height: 0%;
+            background: var(--accent-blue);
+            transition: all 0.3s ease;
+            transform: translateY(-50%);
+        }
+
+        .hour-item.active::before { height: 60%; }
+
+        /* Estilo de los números del contador para evitar saltos */
+        .mono-nums {
+            font-family: 'JetBrains Mono', monospace;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .btn-nav {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 12px;
+            transition: all 0.2s;
+        }
+
+        .btn-nav:active {
+            background: rgba(255, 255, 255, 0.1);
+            transform: scale(0.95);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
+    </style>
+</head>
+<body class="flex justify-center min-h-screen">
+    <div class="w-full max-w-md min-h-screen flex flex-col px-4 pt-6">
+        
+        <!-- Header: Reloj y Ubicación -->
+        <div class="flex justify-between items-center mb-6 px-2">
+            <div>
+                <h1 class="text-xs font-extrabold tracking-[0.3em] text-white/30 uppercase">LuzVzla Master</h1>
+                <p id="live-clock" class="text-xl font-bold mono-nums tracking-tighter">00:00:00</p>
+            </div>
+            <div class="text-right">
+                <span class="text-[10px] font-bold text-blue-500/80 bg-blue-500/10 px-2 py-1 rounded-md uppercase tracking-widest">VET - Caracas</span>
+            </div>
+        </div>
+
+        <!-- Bento Card: Estado Actual -->
+        <div id="main-card" class="bento-card p-6 mb-4 relative overflow-hidden">
+            <div class="flex justify-between items-center relative z-10">
+                <div class="flex flex-col">
+                    <span class="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Estado Actual</span>
+                    <span id="status-text" class="text-3xl font-extrabold uppercase tracking-tight">Cargando...</span>
+                </div>
+                <div id="status-icon" class="text-5xl">--</div>
+            </div>
+        </div>
+
+        <!-- Bento Card: Contador -->
+        <div class="bento-card p-6 mb-4 text-center">
+            <span class="text-[10px] font-bold text-white/30 uppercase tracking-[0.4em] mb-4 block">Próximo cambio en</span>
+            <div id="countdown" class="text-5xl font-black mono-nums tracking-tighter text-white mb-2">0:00:00</div>
+            <div id="next-label" class="text-[11px] font-bold text-blue-500/60 uppercase tracking-widest">Calculando...</div>
+        </div>
+
+        <!-- Navegador de Fecha -->
+        <div class="flex items-center gap-3 mb-6">
+            <button id="btn-prev" class="btn-nav">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <div id="btn-today" class="flex-1 btn-nav text-center cursor-pointer">
+                <span id="date-main" class="block text-xs font-bold text-white uppercase tracking-tight">Hoy</span>
+                <span id="date-sub" class="text-[9px] text-white/30 font-medium italic">Presiona para volver</span>
+            </div>
+            <button id="btn-next" class="btn-nav">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+        </div>
+
+        <!-- Lista de Horas Estilo Minimalista -->
+        <div class="flex-1 overflow-hidden flex flex-col">
+            <div class="flex justify-between items-center mb-3 px-2">
+                <h2 class="text-xs font-bold text-white/40 uppercase tracking-widest">Cronograma Diario</h2>
+                <div class="flex gap-2 text-[9px] font-bold">
+                    <span class="flex items-center gap-1 text-green-500/60">● Energía</span>
+                    <span class="flex items-center gap-1 text-red-500/60">● Corte</span>
+                </div>
+            </div>
+            <div id="schedule-list" class="flex-1 overflow-y-auto custom-scrollbar pr-1">
+                <!-- Inyectado -->
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="py-6 text-center">
+            <p class="text-[9px] text-white/10 font-bold uppercase tracking-[0.5em]">Desarrollo de Precisión • 2024</p>
+        </footer>
+    </div>
+
+    <script>
+        const VET_OFFSET = -4;
+        const BASE_DATE = new Date(2024, 4, 11, 18, 0, 0); 
+
+        let viewDate = new Date();
+        viewDate.setHours(0,0,0,0);
+
+        function getFullStatus(targetMoment) {
+            let pointer = new Date(BASE_DATE);
+            let state = true;
+            
+            while (pointer <= targetMoment) {
+                const hour = pointer.getHours();
+                const duration = (hour >= 22 || hour < 10) ? 3 : 4;
+                let nextPointer = new Date(pointer.getTime() + (duration * 3600000));
+
+                if (targetMoment >= pointer && targetMoment < nextPointer) {
+                    return { hasLight: state, start: pointer, end: nextPointer, duration: duration };
+                }
+                pointer = nextPointer;
+                state = !state;
+            }
+            return { hasLight: state, start: pointer, end: new Date(), duration: 3 };
+        }
+
+        function updateUI() {
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const vetNow = new Date(utc + (3600000 * VET_OFFSET));
+            
+            // Reloj Principal
+            document.getElementById('live-clock').innerText = vetNow.toLocaleTimeString('es-VE', { 
+                hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' 
+            });
+
+            const current = getFullStatus(vetNow);
+            
+            // Estado y Glow
+            const mainCard = document.getElementById('main-card');
+            const statusText = document.getElementById('status-text');
+            const statusIcon = document.getElementById('status-icon');
+            
+            if (current.hasLight) {
+                statusText.innerText = "Energía";
+                statusText.className = "text-3xl font-extrabold uppercase tracking-tight text-green-400";
+                statusIcon.innerText = "💡";
+                mainCard.className = "bento-card p-6 mb-4 relative overflow-hidden status-glow-green";
+            } else {
+                statusText.innerText = "Corte";
+                statusText.className = "text-3xl font-extrabold uppercase tracking-tight text-red-500";
+                statusIcon.innerText = "🌑";
+                mainCard.className = "bento-card p-6 mb-4 relative overflow-hidden status-glow-red";
+            }
+
+            // Contador
+            const diff = current.end - vetNow;
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            
+            document.getElementById('countdown').innerText = `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            document.getElementById('next-label').innerText = `Hacia el próximo ${current.hasLight ? 'Corte' : 'Servicio'}`;
+        }
+
+        function renderSchedule() {
+            const container = document.getElementById('schedule-list');
+            container.innerHTML = '';
+            
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const vetNow = new Date(utc + (3600000 * VET_OFFSET));
+
+            for (let i = 0; i < 24; i++) {
+                let hDate = new Date(viewDate);
+                hDate.setHours(i, 0, 0, 0);
+                
+                const status = getFullStatus(hDate);
+                const isNow = vetNow.toDateString() === viewDate.toDateString() && vetNow.getHours() === i;
+
+                const item = document.createElement('div');
+                item.className = `hour-item flex items-center justify-between py-5 border-b border-white/5 ${isNow ? 'active' : ''}`;
+                
+                const hDisplay = i % 12 || 12;
+                const ampm = i >= 12 ? 'PM' : 'AM';
+
+                item.innerHTML = `
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-2xl font-extrabold ${isNow ? 'text-white' : 'text-white/40'} tracking-tighter">${hDisplay}</span>
+                        <span class="text-[9px] font-black text-white/20 uppercase">${ampm}</span>
+                    </div>
+                    
+                    <div class="flex items-center gap-6">
+                        <div class="flex flex-col items-end">
+                            <span class="text-[10px] font-black ${status.hasLight ? 'text-green-500/60' : 'text-red-500/60'} uppercase tracking-[0.1em]">
+                                ${status.hasLight ? 'Energía' : 'Corte'}
+                            </span>
+                        </div>
+                        <div class="w-1.5 h-1.5 rounded-full ${status.hasLight ? 'bg-green-500' : 'bg-red-500'} ${isNow ? 'animate-pulse' : ''}"></div>
+                    </div>
+                `;
+                container.appendChild(item);
+            }
+
+            document.getElementById('date-main').innerText = viewDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+        }
+
+        document.getElementById('btn-prev').onclick = () => { viewDate.setDate(viewDate.getDate() - 1); renderSchedule(); };
+        document.getElementById('btn-next').onclick = () => { viewDate.setDate(viewDate.getDate() + 1); renderSchedule(); };
+        document.getElementById('btn-today').onclick = () => { 
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const vetNow = new Date(utc + (3600000 * VET_OFFSET));
+            viewDate = new Date(vetNow); 
+            viewDate.setHours(0,0,0,0); 
+            renderSchedule(); 
+        };
+
+        // Init
+        renderSchedule();
+        updateUI();
+        setInterval(updateUI, 1000);
+    </script>
+</body>
+</html>
+
+```
